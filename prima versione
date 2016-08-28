@@ -1,0 +1,234 @@
+#include <LiquidCrystal.h>
+// Date and time functions using a DS1307 RTC connected via I2C and Wire lib
+#include <Wire.h>
+#include "RTClib.h"
+#if defined(ARDUINO_ARCH_SAMD)
+// for Zero, output on USB Serial console, remove line below if using programming port to program the Zero!
+#define Serial SerialUSB
+#endif
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+RTC_DS1307 rtc;
+#define debug
+#define pushSin 7
+#define pressSin 6// definizione pin per pulsanti 
+#define buzzer 9
+
+char buffer [10];
+
+byte giornoPuntura ;
+byte hourStart = 18;
+byte minutetrasc = 2;
+byte pres = 0;
+byte push = 1;
+byte x = 1;
+void setup () {
+ 
+#ifndef ESP8266
+  while (!Serial); // for Leonardo/Micro/Zero
+#endif
+ char buffer [10];
+  Serial.begin(57600);
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (! rtc.isrunning()) {
+    Serial.println("RTC is NOT running!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    //rtc.adjust(DateTime(2016, 8, 27, 23, 55, 0));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  }
+rtc.adjust(DateTime(2016, 8, 27, 18, 53, 0));
+lcd.begin(16,2);
+pinMode (pushSin, INPUT);
+pinMode (pressSin, INPUT);
+digitalWrite (pushSin , HIGH);
+digitalWrite (pressSin , HIGH);// definizione input e attivazione pull-up
+DateTime now = rtc.now();
+byte giornoPuntura = 27;
+
+}
+
+void loop () {
+    DateTime now = rtc.now();
+    lcd.clear();   
+    byte  c = now.minute();
+    #ifdef debug
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.println();
+    #endif
+    //sprintf( buffer,  "%02d:%02d", now.hour(), now.minute());
+    //lcd.setCursor(0,0);
+    //lcd.print( buffer );
+    //char buffer[10] = "";
+    //lcd.setCursor(0,1);
+    //lcd.print("puntura>");
+    //lcd.setCursor(9,1);
+    if (push == 0 && x == 0){
+      lcd.setCursor(0,0);
+      lcd.print ("oggi fatta!!!");    
+    }
+    else {
+      lcd.setCursor(0,0);
+      lcd.print ("oggi non fatta!!!");
+    }
+    lcd.setCursor(0,1);
+    lcd.print("puntura>");
+    lcd.setCursor(9,1);
+    lcd.print(hourStart);
+    lcd.setCursor(12,1);
+    lcd.print(":");
+    lcd.setCursor(13,1);
+    lcd.print("00");
+    pres = digitalRead(pressSin);
+    #ifdef debug
+    Serial.print("stato siringa nel porta sirenghe = ");
+    Serial.println(pres);
+    Serial.print("stanto bottone puntura eseguita = ");
+    Serial.println(push);
+    Serial.println();
+    #endif
+    
+   if (now.day() != giornoPuntura){
+    x = 1;
+    push = 1;
+   }
+   
+    while (now.hour() == hourStart && x == 1){
+    while (pres == 0)
+    {  
+    lcd.clear();
+    #ifdef debug
+    Serial.print("estrarre siringa");
+    Serial.println("eseguire puntura");
+    Serial.println();
+    #endif
+    lcd.setCursor(0,0);
+    lcd.print("estrarre siringa");
+    lcd.setCursor(0,1);
+    lcd.print("fare la puntura!");
+    pres = digitalRead(pressSin);
+    delay(1000);
+    #ifdef debug
+    Serial.print(pres);
+    #endif
+    }
+    lcd.clear();
+    pres = digitalRead(pressSin);
+    while (pres == 1 && push == 1){
+      DateTime now = rtc.now();
+      byte d = now.minute();
+      byte b = d-c;
+      lcd.setCursor(0,0);
+      lcd.print("siringa tolta");
+      lcd.setCursor(0,1);
+      lcd.print("fare puntura");
+      #ifdef debug
+      Serial.print("c = ");
+      Serial.println(c);
+      Serial.print("b = ");
+      Serial.println(b);
+      Serial.print("d = ");
+      Serial.println(d);
+      delay(500);     
+      #endif
+      push = digitalRead(pushSin);
+      #ifdef debug
+      Serial.print("push =");
+      Serial.println(push);
+      #endif
+      while (b >= minutetrasc  && push == 1){
+      #ifdef debug
+      Serial.print("push =");
+      Serial.println(push);
+      Serial.println("allarme");
+      #endif
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("allarme!!");
+      lcd.setCursor(0,1);
+      lcd.print("puntura non fatta");
+      allarme();
+      push = digitalRead(pushSin);     
+      }
+      if (push == 0){
+        #ifdef debug
+        Serial.println("puntura eseguita");
+        Serial.println("a domani");
+        #endif
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("puntura fatta");
+        lcd.setCursor(0,1);
+        lcd.print("a domani!!!");
+        delay(10000);  
+        x = 0;
+        DateTime now = rtc.now();
+        giornoPuntura = now.day();
+        c = now.minute();   
+    }
+   while ( push == 0 && pres == 1){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("reinserire");
+    lcd.setCursor(0,1);
+    lcd.print("siringa");
+   
+    delay(100);
+    pres = digitalRead(pressSin);
+    DateTime now = rtc.now();
+      byte d = now.minute();
+      byte b = d-c;
+      #ifdef debug
+      Serial.print("c = ");
+      Serial.println(c);
+      Serial.print("b = ");
+      Serial.println(b);
+      Serial.print("d = ");
+      Serial.println(d);
+      //delay(500);     
+      #endif
+      if(b >= minutetrasc && pres == 1){
+        #ifdef debug
+      Serial.print("press =");
+      Serial.println(pres);
+      Serial.println("allarme");
+      #endif
+        allarme2();
+        pres = digitalRead(pressSin);
+      }
+   }
+   
+   }
+   delay(100);
+}
+ #ifdef debug
+ Serial.print ("x =");
+ Serial.print (x);
+ Serial.print ("giorno partenza =");
+ Serial.println(now.day());
+ Serial.print ("giorno puntura =");
+ Serial.println (giornoPuntura);
+ //delay(1000);
+ #endif
+ }  
+
+    
+void allarme(void){ 
+     tone (buzzer, 450);
+     delay(200);
+     noTone(buzzer);
+     delay(500);     
+  }
+
+void allarme2(void){
+      tone (buzzer, 600);
+     delay(200);
+     noTone(buzzer);
+     delay(1000);   
+}
